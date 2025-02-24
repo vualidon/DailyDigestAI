@@ -132,7 +132,7 @@ export const PaperDetail: React.FC<PaperDetailProps> = ({ paper, isOpen, onClose
         const response = await axios.post(
           'https://api.firecrawl.dev/v1/scrape',
           {
-            url: `https://arxiv.org/pdf/${paper.paper.id}`,
+            url: `https://arxiv.org/html/${paper.paper.id}`,
             formats: ['markdown']
           },
           {
@@ -214,7 +214,7 @@ export const PaperDetail: React.FC<PaperDetailProps> = ({ paper, isOpen, onClose
           const response = await axios.post(
             'https://api.firecrawl.dev/v1/scrape',
             {
-              url: `https://arxiv.org/pdf/${paper.paper.id}`,
+              url: `https://arxiv.org/html/${paper.paper.id}`,
               formats: ['markdown']
             },
             {
