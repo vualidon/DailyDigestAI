@@ -28,6 +28,16 @@ export const PaperCard: React.FC<PaperCardProps> = ({ paper }) => {
 
     setIsLoading(true);
     try {
+      const apiKey = import.meta.env.VITE_FIRECRAWL_API_KEY;
+
+      if (!apiKey) {
+        console.warn('Firecrawl API key is not set. Please add it to your .env file.');
+        updatePaperState(paper.paper.id, {
+          pdfContent: "PDF content could not be loaded. The Firecrawl API key is missing."
+        });
+        return;
+      }
+
       const response = await axios.post(
         'https://api.firecrawl.dev/v1/scrape',
         {
@@ -37,7 +47,7 @@ export const PaperCard: React.FC<PaperCardProps> = ({ paper }) => {
         {
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_FIRECRAWL_API_KEY}`
+            'Authorization': `Bearer ${apiKey}`
           },
           timeout: 30000
         }
@@ -50,6 +60,9 @@ export const PaperCard: React.FC<PaperCardProps> = ({ paper }) => {
       }
     } catch (error) {
       console.error('Error preloading PDF content:', error);
+      updatePaperState(paper.paper.id, {
+        pdfContent: "Error loading PDF content. Please try again later."
+      });
     } finally {
       setIsLoading(false);
     }
@@ -63,16 +76,15 @@ export const PaperCard: React.FC<PaperCardProps> = ({ paper }) => {
 
   return (
     <>
-      <div 
-        className={`group bg-white dark:bg-gray-800/50 dark:backdrop-blur-sm rounded-2xl shadow-sm dark:shadow-[0_4px_20px_-2px_rgba(0,0,255,0.1)] border border-gray-100 dark:border-blue-500/20 hover:shadow-md dark:hover:shadow-[0_8px_30px_rgb(0,0,255,0.15)] hover:scale-[1.01] dark:hover:bg-gray-800/60 hover:border-blue-200 dark:hover:border-blue-400/30 transition-all duration-500 cursor-pointer ${
-          isLoading ? 'animate-pulse' : ''
-        }`}
+      <div
+        className={`group bg-white dark:bg-gray-800/50 dark:backdrop-blur-sm rounded-2xl shadow-sm dark:shadow-[0_4px_20px_-2px_rgba(0,0,255,0.1)] border border-gray-100 dark:border-blue-500/20 hover:shadow-md dark:hover:shadow-[0_8px_30px_rgb(0,0,255,0.15)] hover:scale-[1.01] dark:hover:bg-gray-800/60 hover:border-blue-200 dark:hover:border-blue-400/30 transition-all duration-500 cursor-pointer ${isLoading ? 'animate-pulse' : ''
+          }`}
         onClick={() => setIsDetailOpen(true)}
       >
         <div className="p-6">
           <div className="flex items-start gap-6">
-            <img 
-              src={paper.thumbnail} 
+            <img
+              src={paper.thumbnail}
               alt={paper.title}
               className="w-32 h-32 object-cover rounded-xl bg-gray-50 dark:bg-gray-700/50 group-hover:shadow-lg dark:group-hover:shadow-[0_0_15px_rgba(59,130,246,0.3)] transition-all duration-500"
             />
@@ -80,7 +92,7 @@ export const PaperCard: React.FC<PaperCardProps> = ({ paper }) => {
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white dark:drop-shadow-[0_0_10px_rgba(255,255,255,0.1)] group-hover:text-blue-600 dark:group-hover:text-blue-300 dark:group-hover:drop-shadow-[0_0_15px_rgba(59,130,246,0.4)] mb-3 line-clamp-2 transition-all duration-500">
                 {paper.title}
               </h2>
-              
+
               <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 dark:text-blue-200/80 mb-4 transition-colors duration-500">
                 <div className="flex items-center gap-1.5 hover:text-blue-600 dark:hover:text-blue-300 transition-colors duration-300">
                   <CalendarIcon className="w-4 h-4" />
@@ -97,13 +109,17 @@ export const PaperCard: React.FC<PaperCardProps> = ({ paper }) => {
               </p>
 
               <div className="flex items-center gap-3">
-                <img 
-                  src={paper.submittedBy.avatarUrl} 
-                  alt={paper.submittedBy.fullname}
-                  className="w-6 h-6 rounded-full ring-2 ring-transparent dark:ring-blue-500/20 group-hover:ring-blue-500/50 dark:group-hover:ring-blue-400/50 transition-all duration-500"
-                />
+                {paper.submittedBy && paper.submittedBy.avatarUrl ? (
+                  <img
+                    src={paper.submittedBy.avatarUrl}
+                    alt={paper.submittedBy.fullname || 'User'}
+                    className="w-6 h-6 rounded-full ring-2 ring-transparent dark:ring-blue-500/20 group-hover:ring-blue-500/50 dark:group-hover:ring-blue-400/50 transition-all duration-500"
+                  />
+                ) : (
+                  <div className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700"></div>
+                )}
                 <span className="text-sm text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors duration-500">
-                  Submitted by <span className="font-medium text-gray-900 dark:text-white dark:drop-shadow-[0_0_10px_rgba(255,255,255,0.1)] group-hover:text-blue-600 dark:group-hover:text-blue-300">{paper.submittedBy.fullname}</span>
+                  Submitted by <span className="font-medium text-gray-900 dark:text-white dark:drop-shadow-[0_0_10px_rgba(255,255,255,0.1)] group-hover:text-blue-600 dark:group-hover:text-blue-300">{paper.submittedBy?.fullname || 'Anonymous'}</span>
                 </span>
               </div>
             </div>

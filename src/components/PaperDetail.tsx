@@ -40,7 +40,7 @@ export const PaperDetail: React.FC<PaperDetailProps> = ({ paper, isOpen, onClose
   const [status, setStatus] = useState<string>('');
   const [isCopied, setIsCopied] = useState(false);
   const { getPaperState, updatePaperState } = usePaperContext();
-  
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -105,9 +105,9 @@ export const PaperDetail: React.FC<PaperDetailProps> = ({ paper, isOpen, onClose
           updatePaperState(paper.paper.id, { messages: finalMessages });
         } catch (error) {
           console.error('Error in chat:', error);
-          const errorMessage: Message = { 
-            role: 'assistant', 
-            content: 'Sorry, I encountered an error. Please try again.' 
+          const errorMessage: Message = {
+            role: 'assistant',
+            content: 'Sorry, I encountered an error. Please try again.'
           };
           const errorMessages = [...updatedMessages, errorMessage];
           setMessages(errorMessages);
@@ -122,13 +122,25 @@ export const PaperDetail: React.FC<PaperDetailProps> = ({ paper, isOpen, onClose
   const fetchPdfContent = async (selectedIndex: number) => {
     // Skip if not discussion tab or if we already have messages
     if (selectedIndex !== 2 || messages.length > 0) return;
-    
+
     // Skip if we already have PDF content
     if (!pdfContent) {
       setIsLoading(true);
       setStatus('Attempting to retrieve paper content...');
 
       try {
+        const apiKey = import.meta.env.VITE_FIRECRAWL_API_KEY;
+
+        if (!apiKey) {
+          console.warn('Firecrawl API key is not set. Please add it to your .env file.');
+          const errorMessage = "PDF content could not be loaded. The Firecrawl API key is missing.";
+          setPdfContent(errorMessage);
+          updatePaperState(paper.paper.id, { pdfContent: errorMessage });
+          setIsLoading(false);
+          setStatus('Failed to retrieve paper content due to missing API key.');
+          return;
+        }
+
         const response = await axios.post(
           'https://api.firecrawl.dev/v1/scrape',
           {
@@ -138,7 +150,7 @@ export const PaperDetail: React.FC<PaperDetailProps> = ({ paper, isOpen, onClose
           {
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${import.meta.env.VITE_FIRECRAWL_API_KEY}`
+              'Authorization': `Bearer ${apiKey}`
             },
             timeout: 30000
           }
@@ -151,14 +163,20 @@ export const PaperDetail: React.FC<PaperDetailProps> = ({ paper, isOpen, onClose
         }
       } catch (error) {
         console.error('Error fetching PDF content:', error);
+        const errorMessage = "Error loading PDF content. Please try again later.";
+        setPdfContent(errorMessage);
+        updatePaperState(paper.paper.id, { pdfContent: errorMessage });
+        setStatus('Failed to retrieve paper content.');
       } finally {
         setIsLoading(false);
-        setStatus('Generating summary with Gemini...');
-        generatePaperSummary();
+        if (pdfContent && !pdfContent.includes("Error") && !pdfContent.includes("missing")) {
+          setStatus('Generating summary with Gemini...');
+          generatePaperSummary();
+        }
       }
     } else {
       // If we have PDF content but no messages, generate summary
-      if (messages.length === 0) {
+      if (messages.length === 0 && !pdfContent.includes("Error") && !pdfContent.includes("missing")) {
         setStatus('Generating summary with Gemini...');
         generatePaperSummary();
       }
@@ -167,7 +185,7 @@ export const PaperDetail: React.FC<PaperDetailProps> = ({ paper, isOpen, onClose
 
   const generatePaperSummary = async () => {
     if (summary || messages.length > 0) return;
-    
+
     setIsSummarizing(true);
     try {
       const result = await generateSummary(
@@ -178,8 +196,8 @@ export const PaperDetail: React.FC<PaperDetailProps> = ({ paper, isOpen, onClose
       setSummary(result.summary);
       const newMessages: Message[] = [
         { role: 'assistant', content: result.summary },
-        { 
-          role: 'suggestions', 
+        {
+          role: 'suggestions',
           content: '### Here are some questions you might want to ask:',
           questions: result.questions
         }
@@ -188,9 +206,9 @@ export const PaperDetail: React.FC<PaperDetailProps> = ({ paper, isOpen, onClose
       updatePaperState(paper.paper.id, { messages: newMessages });
     } catch (error) {
       console.error('Error generating summary:', error);
-      const errorMessages: Message[] = [{ 
-        role: 'assistant', 
-        content: 'I encountered an error generating the summary. Please feel free to ask questions about the paper.' 
+      const errorMessages: Message[] = [{
+        role: 'assistant',
+        content: 'I encountered an error generating the summary. Please feel free to ask questions about the paper.'
       }];
       setMessages(errorMessages);
       updatePaperState(paper.paper.id, { messages: errorMessages });
@@ -211,6 +229,18 @@ export const PaperDetail: React.FC<PaperDetailProps> = ({ paper, isOpen, onClose
       if (!pdfContent) {
         setStatus('Fetching paper content...');
         try {
+          const apiKey = import.meta.env.VITE_FIRECRAWL_API_KEY;
+
+          if (!apiKey) {
+            console.warn('Firecrawl API key is not set. Please add it to your .env file.');
+            const errorMessage = "PDF content could not be loaded. The Firecrawl API key is missing.";
+            setPdfContent(errorMessage);
+            updatePaperState(paper.paper.id, { pdfContent: errorMessage });
+            setStatus('Failed to retrieve paper content due to missing API key.');
+            setIsGeneratingNote(false);
+            return;
+          }
+
           const response = await axios.post(
             'https://api.firecrawl.dev/v1/scrape',
             {
@@ -220,7 +250,7 @@ export const PaperDetail: React.FC<PaperDetailProps> = ({ paper, isOpen, onClose
             {
               headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${import.meta.env.VITE_FIRECRAWL_API_KEY}`
+                'Authorization': `Bearer ${apiKey}`
               },
               timeout: 30000
             }
@@ -230,7 +260,7 @@ export const PaperDetail: React.FC<PaperDetailProps> = ({ paper, isOpen, onClose
             const newPdfContent = response.data.data.markdown;
             setPdfContent(newPdfContent);
             updatePaperState(paper.paper.id, { pdfContent: newPdfContent });
-            
+
             // Generate note with the fetched content
             const note = await generateObsidianNote(paper.paper, newPdfContent);
             setNotes(note);
@@ -278,7 +308,7 @@ export const PaperDetail: React.FC<PaperDetailProps> = ({ paper, isOpen, onClose
 
   const handleCopyNote = async () => {
     if (!notes) return;
-    
+
     try {
       await navigator.clipboard.writeText(notes);
       setIsCopied(true);
@@ -291,7 +321,7 @@ export const PaperDetail: React.FC<PaperDetailProps> = ({ paper, isOpen, onClose
   return (
     <Dialog open={isOpen} onClose={onClose} className="relative z-50">
       <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" aria-hidden="true" />
-      
+
       <div className="fixed inset-0 flex items-center justify-center p-4">
         <Dialog.Panel className="w-full max-w-4xl h-[90vh] bg-white dark:bg-gray-900 rounded-2xl shadow-xl flex flex-col">
           <Tab.Group as="div" className="flex flex-col h-full" onChange={fetchPdfContent}>
@@ -310,10 +340,9 @@ export const PaperDetail: React.FC<PaperDetailProps> = ({ paper, isOpen, onClose
                   <Tab
                     key={tab.name}
                     className={({ selected }) =>
-                      `flex items-center shrink-0 space-x-2 px-3 sm:px-4 py-3 text-sm font-medium focus:outline-none border-b-2 ${
-                        selected
-                          ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                      `flex items-center shrink-0 space-x-2 px-3 sm:px-4 py-3 text-sm font-medium focus:outline-none border-b-2 ${selected
+                        ? 'border-blue-500 text-blue-600 dark:text-blue-400'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
                       }`
                     }
                   >
@@ -381,7 +410,7 @@ export const PaperDetail: React.FC<PaperDetailProps> = ({ paper, isOpen, onClose
 
               <Tab.Panel className="h-full">
                 <div className="flex flex-col h-full">
-                  <div 
+                  <div
                     ref={chatContainerRef}
                     className="flex-1 overflow-y-auto space-y-4 mb-4"
                   >
@@ -402,13 +431,12 @@ export const PaperDetail: React.FC<PaperDetailProps> = ({ paper, isOpen, onClose
                             className="flex justify-start"
                           >
                             <div
-                              className={`max-w-[95%] sm:max-w-[80%] rounded-lg p-4 ${
-                                message.role === 'user'
-                                  ? 'bg-green-100 dark:bg-green-900/30 text-green-900 dark:text-green-100 ml-auto'
-                                  : message.role === 'suggestions'
+                              className={`max-w-[95%] sm:max-w-[80%] rounded-lg p-4 ${message.role === 'user'
+                                ? 'bg-green-100 dark:bg-green-900/30 text-green-900 dark:text-green-100 ml-auto'
+                                : message.role === 'suggestions'
                                   ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-900 dark:text-purple-100 prose dark:prose-invert'
                                   : 'bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-100 prose dark:prose-invert'
-                              }`}
+                                }`}
                             >
                               {message.role === 'suggestions' ? (
                                 <div className="space-y-4">
@@ -477,7 +505,7 @@ export const PaperDetail: React.FC<PaperDetailProps> = ({ paper, isOpen, onClose
                               const event = {
                                 key: 'Enter',
                                 shiftKey: false,
-                                preventDefault: () => {}
+                                preventDefault: () => { }
                               } as React.KeyboardEvent<HTMLTextAreaElement>;
                               handleKeyPress(event);
                             }
